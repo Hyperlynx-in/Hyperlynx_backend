@@ -5,4 +5,5 @@ app_name = 'api'
 
 urlpatterns = [
     path('health/', views.HealthCheckView.as_view(), name='health_check'),
+    path('framework-library/', views.FrameworkLibraryView.as_view(), name='framework_library'),
 ]

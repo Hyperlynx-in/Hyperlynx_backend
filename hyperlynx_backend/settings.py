@@ -86,21 +86,29 @@ WSGI_APPLICATION = 'hyperlynx_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# Supabase PostgreSQL Configuration
+# Temporarily using SQLite for development
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('SUPABASE_DB_NAME', default='postgres'),
-        'USER': config('SUPABASE_DB_USER', default='postgres'),
-        'PASSWORD': config('SUPABASE_DB_PASSWORD', default=''),
-        'HOST': config('SUPABASE_DB_HOST', default='localhost'),
-        'PORT': config('SUPABASE_DB_PORT', default='5432'),
-        'CONN_MAX_AGE': 600,
-        'OPTIONS': {
-            'sslmode': 'require',
-        }
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# Supabase PostgreSQL Configuration (commented for now)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': config('SUPABASE_DB_NAME', default='postgres'),
+#         'USER': config('SUPABASE_DB_USER', default='postgres'),
+#         'PASSWORD': config('SUPABASE_DB_PASSWORD', default=''),
+#         'HOST': config('SUPABASE_DB_HOST', default='localhost'),
+#         'PORT': config('SUPABASE_DB_PORT', default='5432'),
+#         'CONN_MAX_AGE': 600,
+#         'OPTIONS': {
+#             'sslmode': 'require',
+#         }
+#     }
+# }
 
 
 # Password validation
