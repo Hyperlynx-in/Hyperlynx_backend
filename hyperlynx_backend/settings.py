@@ -54,6 +54,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -86,29 +87,21 @@ WSGI_APPLICATION = 'hyperlynx_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# Temporarily using SQLite for development
+# Supabase PostgreSQL Configuration
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('SUPABASE_DB_NAME', default='postgres'),
+        'USER': config('SUPABASE_DB_USER', default='postgres'),
+        'PASSWORD': config('SUPABASE_DB_PASSWORD', default=''),
+        'HOST': config('SUPABASE_DB_HOST', default='localhost'),
+        'PORT': config('SUPABASE_DB_PORT', default='5432'),
+        'CONN_MAX_AGE': 600,
+        'OPTIONS': {
+            'sslmode': 'require',
+        }
     }
 }
-
-# Supabase PostgreSQL Configuration (commented for now)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': config('SUPABASE_DB_NAME', default='postgres'),
-#         'USER': config('SUPABASE_DB_USER', default='postgres'),
-#         'PASSWORD': config('SUPABASE_DB_PASSWORD', default=''),
-#         'HOST': config('SUPABASE_DB_HOST', default='localhost'),
-#         'PORT': config('SUPABASE_DB_PORT', default='5432'),
-#         'CONN_MAX_AGE': 600,
-#         'OPTIONS': {
-#             'sslmode': 'require',
-#         }
-#     }
-# }
 
 
 # Password validation
@@ -146,6 +139,17 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise configuration for serving static files
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
@@ -203,8 +207,42 @@ SIMPLE_JWT = {
 # DRF Spectacular Schema Configuration
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Hyperlynx Backend API',
-    'DESCRIPTION': 'Django REST API with JWT Authentication',
+    'DESCRIPTION': 'Django REST API with JWT Authentication and Framework Library Management',
     'VERSION': '1.0.0',
     'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
     'SERVE_AUTHENTICATION': None,
+    'CONTACT': {
+        'name': 'Hyperlynx Support',
+        'email': 'support@hyperlynx.com',
+    },
+    'LICENSE': {
+        'name': 'MIT',
+    },
+    'TAGS': [
+        {
+            'name': 'health',
+            'description': 'Health check endpoints'
+        },
+        {
+            'name': 'frameworks',
+            'description': 'Framework library management endpoints'
+        },
+        {
+            'name': 'authentication',
+            'description': 'JWT authentication endpoints'
+        },
+        {
+            'name': 'users',
+            'description': 'User management endpoints'
+        }
+    ],
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'defaultModelsExpandDepth': 2,
+        'defaultModelExpandDepth': 1,
+        'displayOperationId': True,
+        'filter': True,
+        'showExtensions': True,
+    },
+    'ENABLE_DJANGO_OAUTH2_SAC': False,
 }

@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 import os
 import yaml
 from pathlib import Path
@@ -13,6 +14,23 @@ class HealthCheckView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=['health'],
+        summary="Health Check",
+        description="Check if the Hyperlynx API is running and operational.",
+        responses={
+            200: OpenApiResponse(
+                description="API is running successfully",
+                examples={
+                    "application/json": {
+                        "status": "success",
+                        "message": "Hyperlynx API is running",
+                        "code": 200
+                    }
+                }
+            )
+        }
+    )
     def get(self, request):
         return Response(
             {
@@ -30,6 +48,54 @@ class FrameworkLibraryView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=['frameworks'],
+        summary="Framework Library",
+        description="Retrieve framework library details. List all available frameworks or get a specific framework by name.",
+        parameters=[
+            OpenApiParameter(
+                name="name",
+                description="Optional framework filename (with or without .yaml extension). Example: nist-csf-2.0",
+                required=False,
+                type=str
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Frameworks retrieved successfully",
+                examples={
+                    "application/json": {
+                        "status": "success",
+                        "count": 50,
+                        "data": [
+                            {
+                                "filename": "nist-csf-2.0.yaml",
+                                "name": "NIST Cybersecurity Framework",
+                                "ref_id": "nist-csf-2.0",
+                                "description": "Framework for managing cybersecurity risk",
+                                "version": "2.0",
+                                "provider": "NIST"
+                            }
+                        ],
+                        "code": 200
+                    }
+                }
+            ),
+            404: OpenApiResponse(
+                description="Framework not found",
+                examples={
+                    "application/json": {
+                        "status": "error",
+                        "message": "Framework 'name' not found",
+                        "code": 404
+                    }
+                }
+            ),
+            500: OpenApiResponse(
+                description="Internal server error"
+            )
+        }
+    )
     def get(self, request):
         """
         GET /api/framework-library/ - List all available frameworks
