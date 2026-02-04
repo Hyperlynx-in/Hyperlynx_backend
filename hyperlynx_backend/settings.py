@@ -34,7 +34,7 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1,.railway.app,.onrender.com',
+    default='localhost,127.0.0.1,.railway.app,.onrender.com,.vercel.app',
     cast=lambda v: [s.strip() for s in v.split(',')]
 )
 
@@ -152,8 +152,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = []
 
 # WhiteNoise configuration for serving static files
 STORAGES = {
