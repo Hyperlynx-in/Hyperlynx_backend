@@ -1,1 +1,1 @@
-web: gunicorn hyperlynx_backend.wsgi --bind 0.0.0.0:$PORT --log-file -
+web: python manage.py migrate && gunicorn hyperlynx_backend.wsgi:application --workers 2 --log-file -
