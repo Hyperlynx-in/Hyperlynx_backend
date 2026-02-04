@@ -80,7 +80,9 @@ def create_app():
     
     # Initialize extensions
     db.init_app(app)
-    migrate.init_app(app, db)
+    # Don't initialize migrate on Vercel serverless
+    if os.getenv('VERCEL') != '1':
+        migrate.init_app(app, db)
     jwt.init_app(app)
     
     # Swagger/OpenAPI Configuration
@@ -1018,25 +1020,36 @@ def create_app():
 
 
 # For Vercel - Create app instance
+import sys
+import traceback
+
 try:
     app = create_app()
+    print("✓ Flask app created successfully", file=sys.stderr)
 except Exception as e:
+    print(f"✗ Failed to create app: {e}", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+    
     # Fallback minimal app if initialization fails
     from flask import Flask
     app = Flask(__name__)
+    error_message = str(e)
+    error_traceback = traceback.format_exc()
     
     @app.route('/')
-    def error():
+    def error_root():
         return jsonify({
             'error': 'Application initialization failed',
-            'message': str(e),
+            'message': error_message,
+            'traceback': error_traceback,
             'status': 'error'
         }), 500
     
     @app.route('/api/health')
-    def health():
+    def error_health():
         return jsonify({
             'error': 'Application initialization failed',
-            'message': str(e),
+            'message': error_message,
+            'traceback': error_traceback,
             'status': 'error'
         }), 500
