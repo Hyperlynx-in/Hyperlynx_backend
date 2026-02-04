@@ -1017,5 +1017,26 @@ def create_app():
     return app
 
 
-# For Vercel
-app = create_app()
+# For Vercel - Create app instance
+try:
+    app = create_app()
+except Exception as e:
+    # Fallback minimal app if initialization fails
+    from flask import Flask
+    app = Flask(__name__)
+    
+    @app.route('/')
+    def error():
+        return jsonify({
+            'error': 'Application initialization failed',
+            'message': str(e),
+            'status': 'error'
+        }), 500
+    
+    @app.route('/api/health')
+    def health():
+        return jsonify({
+            'error': 'Application initialization failed',
+            'message': str(e),
+            'status': 'error'
+        }), 500
