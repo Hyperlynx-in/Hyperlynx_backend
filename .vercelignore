@@ -10,7 +10,15 @@ env/
 db.sqlite3
 *.log
 .DS_Store
-staticfiles_build/
 .git/
 .gitignore
 *.md
+hyperlynx_backend/
+users/
+api/
+manage.py
+Procfile
+build.sh
+build_files.sh
+render.yaml
+runtime.txt
