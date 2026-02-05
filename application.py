@@ -102,32 +102,29 @@ def create_app():
         migrate.init_app(app, db)
     jwt.init_app(app)
     
-    # Swagger/OpenAPI Configuration - SKIP on Vercel to prevent cold start issues
-    is_vercel = os.getenv('VERCEL') == '1'
+    # Swagger/OpenAPI Configuration - enabled everywhere
+    swagger_config = {
+        "headers": [],
+        "specs": [
+            {
+                "endpoint": 'apispec',
+                "route": '/apispec.json',
+                "rule_filter": lambda rule: True,
+                "model_filter": lambda tag: True,
+            }
+        ],
+        "static_url_path": "/flasgger_static",
+        "swagger_ui": True,
+        "specs_route": "/docs",
+        "url_prefix": None
+    }
     
-    if not is_vercel:
-        swagger_config = {
-            "headers": [],
-            "specs": [
-                {
-                    "endpoint": 'apispec',
-                    "route": '/apispec.json',
-                    "rule_filter": lambda rule: True,
-                    "model_filter": lambda tag: True,
-                }
-            ],
-            "static_url_path": "/flasgger_static",
-            "swagger_ui": True,
-            "specs_route": "/docs",
-            "url_prefix": None
-        }
-        
-        # Initialize Swagger with error handling
-        try:
-            swagger = Swagger(app, config=swagger_config)
-        except Exception as e:
-            print(f"Warning: Swagger initialization failed: {e}", file=sys.stderr)
-            pass
+    # Initialize Swagger with error handling
+    try:
+        swagger = Swagger(app, config=swagger_config)
+    except Exception as e:
+        print(f"Warning: Swagger initialization failed: {e}", file=sys.stderr)
+        pass
     
     # Register routes
     @app.route('/', methods=['GET'])
