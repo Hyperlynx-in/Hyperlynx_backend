@@ -17,6 +17,16 @@ migrate = Migrate()
 jwt = JWTManager()
 
 
+def _get_int_env(name, default_value):
+  value = os.getenv(name)
+  if value is None or value == "":
+    return default_value
+  try:
+    return int(value)
+  except ValueError:
+    return default_value
+
+
 def create_app():
     app = Flask(__name__)
     
@@ -54,7 +64,7 @@ def create_app():
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', app.config['SECRET_KEY'])
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME', 3600))
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = _get_int_env('JWT_ACCESS_TOKEN_LIFETIME', 3600)
     
     # Database Configuration
     database_url = os.getenv('DATABASE_URL')
