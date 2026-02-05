@@ -1051,39 +1051,3 @@ def create_app():
             }), 200
     
     return app
-
-
-# For Vercel - Create app instance
-import sys
-import traceback
-
-try:
-    app = create_app()
-    print("✓ Flask app created successfully", file=sys.stderr)
-except Exception as e:
-    print(f"✗ Failed to create app: {e}", file=sys.stderr)
-    traceback.print_exc(file=sys.stderr)
-    
-    # Fallback minimal app if initialization fails
-    from flask import Flask
-    app = Flask(__name__)
-    error_message = str(e)
-    error_traceback = traceback.format_exc()
-    
-    @app.route('/')
-    def error_root():
-        return jsonify({
-            'error': 'Application initialization failed',
-            'message': error_message,
-            'traceback': error_traceback,
-            'status': 'error'
-        }), 500
-    
-    @app.route('/api/health')
-    def error_health():
-        return jsonify({
-            'error': 'Application initialization failed',
-            'message': error_message,
-            'traceback': error_traceback,
-            'status': 'error'
-        }), 500
