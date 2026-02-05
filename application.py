@@ -1,4 +1,5 @@
 import os
+import sys
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -71,7 +72,13 @@ def create_app():
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
-        'connect_args': {'sslmode': 'require'}
+        'pool_size': 1,  # Serverless functions should use minimal pool
+        'max_overflow': 0,  # No overflow for serverless
+        'pool_timeout': 10,
+        'connect_args': {
+            'sslmode': 'require',
+            'connect_timeout': 10
+        }
     }
     
     # CORS Configuration
@@ -98,10 +105,17 @@ def create_app():
         ],
         "static_url_path": "/flasgger_static",
         "swagger_ui": True,
-        "specs_route": "/docs"
+        "specs_route": "/docs",
+        "url_prefix": None
     }
     
-    swagger = Swagger(app, config=swagger_config)
+    # Initialize Swagger with error handling
+    try:
+        swagger = Swagger(app, config=swagger_config)
+    except Exception as e:
+        print(f"Warning: Swagger initialization failed: {e}", file=sys.stderr)
+        # Continue without Swagger if it fails
+        pass
     
     # Register routes
     @app.route('/api/health', methods=['GET'])

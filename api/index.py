@@ -1,34 +1,36 @@
 """
-Vercel serverless function entry point
+Vercel serverless function entry point for Flask app
 """
 import sys
-import traceback
+import os
+
+# Add parent directory to path so we can import application
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    # Try to import the application
     from application import app
-    print("✓ Successfully imported Flask app", file=sys.stderr)
+    
+    # Vercel expects the Flask app to be named 'app'
+    # This handles all routes
+    def handler(environ, start_response):
+        return app(environ, start_response)
+    
 except Exception as e:
-    print(f"✗ Failed to import application: {e}", file=sys.stderr)
-    traceback.print_exc(file=sys.stderr)
-    
-    # Create a minimal fallback Flask app to show the error
+    import traceback
     from flask import Flask, jsonify
+    
     app = Flask(__name__)
+    error_details = {
+        'error': str(e),
+        'traceback': traceback.format_exc()
+    }
     
-    error_msg = str(e)
-    error_trace = traceback.format_exc()
-    
-    @app.route('/')
+    @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
-    def show_error(path=''):
+    def error_handler(path):
         return jsonify({
-            'error': 'Failed to initialize application',
-            'message': error_msg,
-            'traceback': error_trace.split('\n'),
-            'path': path
+            'status': 'error',
+            'message': 'Application failed to initialize',
+            'details': error_details
         }), 500
-
-# Export for Vercel
-app = app
 
