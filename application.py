@@ -130,6 +130,17 @@ def create_app():
             pass
     
     # Register routes
+    @app.route('/', methods=['GET'])
+    def root():
+        """Root endpoint"""
+        return jsonify({
+            'status': 'success',
+            'message': 'Hyperlynx Backend API',
+            'version': '1.0.0',
+            'docs': '/docs',
+            'health': '/api/health'
+        }), 200
+    
     @app.route('/api/health', methods=['GET'])
     def health_check():
         """
