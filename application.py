@@ -102,8 +102,10 @@ def create_app():
         migrate.init_app(app, db)
     jwt.init_app(app)
     
-    # Swagger/OpenAPI Configuration - skip on Vercel to speed up cold start
-    if os.getenv('VERCEL') != '1':
+    # Swagger/OpenAPI Configuration - SKIP on Vercel to prevent cold start issues
+    is_vercel = os.getenv('VERCEL') == '1'
+    
+    if not is_vercel:
         swagger_config = {
             "headers": [],
             "specs": [
@@ -125,7 +127,6 @@ def create_app():
             swagger = Swagger(app, config=swagger_config)
         except Exception as e:
             print(f"Warning: Swagger initialization failed: {e}", file=sys.stderr)
-            # Continue without Swagger if it fails
             pass
     
     # Register routes
