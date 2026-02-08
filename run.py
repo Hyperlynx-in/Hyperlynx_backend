@@ -6,7 +6,9 @@ import os
 import sys
 
 if __name__ == '__main__':
-    from application import app
+    from application import create_app
+    
+    app = create_app()
     
     # Run the Flask development server
     app.run(

@@ -778,7 +778,7 @@ def create_app():
     
     # Framework Library CRUD Operations
     @app.route('/api/framework-library/', methods=['POST'])
-    def create_framework():
+    def create_framework_yaml():
         """
         Create New Framework
         ---
@@ -851,7 +851,7 @@ def create_app():
         return _create()
     
     @app.route('/api/framework-library/<filename>', methods=['PUT'])
-    def update_framework(filename):
+    def update_framework_yaml(filename):
         """
         Update Framework
         ---
@@ -928,7 +928,7 @@ def create_app():
         return _update()
     
     @app.route('/api/framework-library/<filename>', methods=['DELETE'])
-    def delete_framework(filename):
+    def delete_framework_yaml(filename):
         """
         Delete Framework
         ---
@@ -1050,4 +1050,15 @@ def create_app():
                 'note': 'Limited stats available'
             }), 200
     
+    # Register library management routes
+    try:
+        from app.routes import register_all_routes
+        register_all_routes(app)
+    except Exception as e:
+        print(f"Warning: Failed to register library routes: {e}", file=sys.stderr)
+    
     return app
+
+
+# Create app instance for development and direct imports
+app = create_app()
