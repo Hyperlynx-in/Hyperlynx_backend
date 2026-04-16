@@ -5,6 +5,7 @@ from .framework import Framework, RequirementNode
 from .reference_control import ReferenceControl
 from .risk_matrix import RiskMatrix
 from .mapping import RequirementMappingSet, RequirementMapping
+from .regulatory_update import RegulatoryUpdate, UpdateSubscription, UserUpdateReadStatus
 
 __all__ = [
     'User',
@@ -16,4 +17,7 @@ __all__ = [
     'RiskMatrix',
     'RequirementMappingSet',
     'RequirementMapping',
+    'RegulatoryUpdate',
+    'UpdateSubscription',
+    'UserUpdateReadStatus',
 ]
