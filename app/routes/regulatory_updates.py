@@ -18,7 +18,31 @@ N8N_WEBHOOK_SECRET = os.getenv('N8N_WEBHOOK_SECRET', 'super-secret-n8n-key-chang
 
 @updates_bp.route('/webhook/n8n/updates', methods=['POST'])
 def ingest_updates():
-    """Endpoint for n8n to push daily regulatory updates."""
+    """
+    Ingest n8n Regulatory Updates
+    ---
+    tags:
+      - Webhooks (n8n)
+    summary: Push daily regulatory updates to the database
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: true
+        description: Bearer {N8N_WEBHOOK_SECRET}
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: array
+          items:
+            type: object
+    responses:
+      201:
+        description: Successfully processed batch of updates
+      401:
+        description: Unauthorized
+    """
     auth_header = request.headers.get('Authorization')
     if auth_header != f"Bearer {N8N_WEBHOOK_SECRET}":
         return jsonify({'error': 'Unauthorized. Invalid API Key.'}), 401
@@ -70,7 +94,34 @@ def ingest_updates():
 @updates_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_updates():
-    """Get paginated regulatory updates with user-specific read status."""
+    """
+    Get Regulatory Updates
+    ---
+    tags:
+      - Regulatory Intelligence
+    summary: Get paginated regulatory updates with user-specific read status
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: true
+        description: Bearer token
+      - name: page
+        in: query
+        type: integer
+      - name: per_page
+        in: query
+        type: integer
+      - name: country
+        in: query
+        type: string
+      - name: impact
+        in: query
+        type: string
+    responses:
+      200:
+        description: Paginated list of updates
+    """
     user_id = get_jwt_identity()
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
@@ -118,7 +169,22 @@ def get_updates():
 @updates_bp.route('/unread-count', methods=['GET'])
 @jwt_required()
 def get_unread_count():
-    """Get the total count of unread updates for the UI Notification Badge."""
+    """
+    Get Unread Updates Count
+    ---
+    tags:
+      - Regulatory Intelligence
+    summary: Get total count of unread updates for notification badges
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: true
+        description: Bearer token
+    responses:
+      200:
+        description: Unread count retrieved successfully
+    """
     user_id = get_jwt_identity()
     total_updates = RegulatoryUpdate.query.count()
     read_count = UserUpdateReadStatus.query.filter_by(user_id=user_id, is_read=True).count()
@@ -127,7 +193,35 @@ def get_unread_count():
 @updates_bp.route('/<int:update_id>/status', methods=['POST'])
 @jwt_required()
 def update_read_status(update_id):
-    """Mark an update as Read or Acknowledged."""
+    """
+    Update Read/Acknowledge Status
+    ---
+    tags:
+      - Regulatory Intelligence
+    summary: Mark an update as read or acknowledged
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: true
+        description: Bearer token
+      - name: update_id
+        in: path
+        type: integer
+        required: true
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            action:
+              type: string
+              enum: [read, acknowledge]
+    responses:
+      200:
+        description: Status updated
+    """
     user_id = get_jwt_identity()
     data = request.get_json()
     
@@ -169,8 +263,30 @@ def update_read_status(update_id):
 @jwt_required(optional=True)
 def subscribe():
     """
-    Subscribe a user to regulatory updates.
-    POST /api/updates/subscribe
+    Subscribe to Regulatory Email Digests
+    ---
+    tags:
+      - Subscriptions
+    summary: Subscribe a user to regulatory updates via email
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: false
+        description: Bearer token (Optional)
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            email:
+              type: string
+            preferences:
+              type: object
+    responses:
+      200:
+        description: Subscribed successfully
     """
     data = request.get_json() or {}
     email = data.get('email')
@@ -210,8 +326,20 @@ def subscribe():
 @updates_bp.route('/webhook/n8n/subscribers', methods=['GET'])
 def get_n8n_subscribers():
     """
-    Webhook for n8n to pull the active subscriber mailing list.
-    GET /api/updates/webhook/n8n/subscribers
+    Get Active Email Subscribers
+    ---
+    tags:
+      - Webhooks (n8n)
+    summary: Pull active subscriber mailing list for n8n digests
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: true
+        description: Bearer {N8N_WEBHOOK_SECRET}
+    responses:
+      200:
+        description: List of active subscribers
     """
     auth_header = request.headers.get('Authorization')
     if auth_header != f"Bearer {N8N_WEBHOOK_SECRET}":
@@ -229,8 +357,24 @@ def get_n8n_subscribers():
 @jwt_required()
 def generate_single_summary(update_id):
     """
-    Generates an AI summary for a specific regulatory update on-demand.
-    POST /api/updates/<update_id>/summarize
+    AI: Generate Plain-English Summary
+    ---
+    tags:
+      - Regulatory Intelligence (AI)
+    summary: Generates a 1-2 sentence AI summary for a specific update
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: true
+        description: Bearer token
+      - name: update_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: AI Summary generated
     """
     # 1. Fetch the specific update
     update_record = RegulatoryUpdate.query.get(update_id)
@@ -276,8 +420,24 @@ def generate_single_summary(update_id):
 @jwt_required()
 def generate_obligations(update_id):
     """
-    Extracts actionable obligations from a specific regulatory update on-demand.
-    POST /api/updates/<update_id>/extract-obligations
+    AI: Extract Compliance Obligations
+    ---
+    tags:
+      - Regulatory Intelligence (AI)
+    summary: Extracts actionable mandates from a specific update
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: true
+        description: Bearer token
+      - name: update_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Obligations extracted
     """
     update_record = RegulatoryUpdate.query.get(update_id)
     if not update_record:
