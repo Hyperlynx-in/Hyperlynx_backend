@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import yaml
 from flasgger import Swagger
+import urllib.parse
 
 load_dotenv()
 
@@ -72,7 +73,8 @@ def create_app():
         # Construct from individual variables
         db_name = os.getenv('SUPABASE_DB_NAME', 'postgres')
         db_user = os.getenv('SUPABASE_DB_USER', 'postgres')
-        db_password = os.getenv('SUPABASE_DB_PASSWORD', '')
+        raw_password = os.getenv('SUPABASE_DB_PASSWORD', '')
+        db_password = urllib.parse.quote_plus(raw_password)
         db_host = os.getenv('SUPABASE_DB_HOST', 'localhost')
         db_port = os.getenv('SUPABASE_DB_PORT', '5432')
         database_url = f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
@@ -129,7 +131,6 @@ def create_app():
     # Register routes
     @app.route('/', methods=['GET'])
     def root():
-        """Root endpoint"""
         return jsonify({
             'status': 'success',
             'message': 'Hyperlynx Backend API',
@@ -140,29 +141,6 @@ def create_app():
     
     @app.route('/api/health', methods=['GET'])
     def health_check():
-        """
-        Health Check Endpoint
-        ---
-        tags:
-          - Health
-        summary: Check API Status
-        description: Verify that the Hyperlynx API is running and operational
-        responses:
-          200:
-            description: API is running successfully
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  example: "success"
-                message:
-                  type: string
-                  example: "Hyperlynx API is running"
-                code:
-                  type: integer
-                  example: 200
-        """
         return jsonify({
             'status': 'success',
             'message': 'Hyperlynx API is running',
@@ -171,50 +149,6 @@ def create_app():
     
     @app.route('/api/framework-library', methods=['GET'])
     def framework_library():
-        """
-        Framework Library Endpoint
-        ---
-        tags:
-          - Frameworks
-        summary: Get Framework Libraries
-        description: Retrieve framework library details from YAML files. Can list all frameworks or get a specific one by name.
-        parameters:
-          - name: name
-            in: query
-            type: string
-            required: false
-            description: Optional framework filename (with or without .yaml extension). Example - nist-csf-2.0
-        responses:
-          200:
-            description: Frameworks retrieved successfully
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  example: "success"
-                count:
-                  type: integer
-                  example: 213
-                data:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      filename:
-                        type: string
-                      name:
-                        type: string
-                      size:
-                        type: integer
-                code:
-                  type: integer
-                  example: 200
-          404:
-            description: Framework directory or specific framework not found
-          500:
-            description: Internal server error
-        """
         framework_name = request.args.get('name', None)
         base_dir = Path(__file__).resolve().parent
         libraries_dir = base_dir / 'libraries'
@@ -263,10 +197,8 @@ def create_app():
             frameworks = []
             for yaml_file in yaml_files[:100]:  # Limit to first 100 for performance
                 try:
-                    # Read only first 500 bytes to get metadata
                     with open(yaml_file, 'r', encoding='utf-8') as file:
                         content = file.read(1000)
-                        # Simple parsing to extract basic info
                         frameworks.append({
                             'filename': yaml_file.name,
                             'name': yaml_file.stem,
@@ -295,58 +227,6 @@ def create_app():
     
     @app.route('/auth/register', methods=['POST'])
     def register():
-        """
-        User Registration Endpoint
-        ---
-        tags:
-          - Authentication
-        summary: Register New User
-        description: Register a new user with email and password
-        parameters:
-          - name: body
-            in: body
-            required: true
-            schema:
-              type: object
-              required:
-                - username
-                - email
-                - password
-                - password2
-              properties:
-                username:
-                  type: string
-                  example: "john_doe"
-                email:
-                  type: string
-                  example: "john@example.com"
-                password:
-                  type: string
-                  example: "SecurePass123"
-                password2:
-                  type: string
-                  example: "SecurePass123"
-                first_name:
-                  type: string
-                  example: "John"
-                last_name:
-                  type: string
-                  example: "Doe"
-        responses:
-          201:
-            description: User registered successfully
-            schema:
-              type: object
-              properties:
-                message:
-                  type: string
-                user:
-                  type: object
-          400:
-            description: Validation error or user already exists
-          500:
-            description: Registration failed
-        """
         data = request.get_json()
         
         if not data:
@@ -386,50 +266,6 @@ def create_app():
     
     @app.route('/auth/login', methods=['POST'])
     def login():
-        """
-        User Login Endpoint
-        ---
-        tags:
-          - Authentication
-        summary: Login User
-        description: Login with username/email and password to get JWT tokens
-        parameters:
-          - name: body
-            in: body
-            required: true
-            schema:
-              type: object
-              required:
-                - username
-                - password
-              properties:
-                username:
-                  type: string
-                  example: "john_doe"
-                password:
-                  type: string
-                  example: "SecurePass123"
-        responses:
-          200:
-            description: Login successful
-            schema:
-              type: object
-              properties:
-                message:
-                  type: string
-                access_token:
-                  type: string
-                refresh_token:
-                  type: string
-                user:
-                  type: object
-          400:
-            description: Missing required fields
-          401:
-            description: Invalid credentials or inactive account
-          500:
-            description: Login failed
-        """
         data = request.get_json()
         
         if not data:
@@ -452,8 +288,9 @@ def create_app():
             if not user.is_active:
                 return jsonify({'error': 'Account is inactive'}), 401
             
-            access_token = create_access_token(identity=user.id)
-            refresh_token = create_refresh_token(identity=user.id)
+            # FIXED: Identity cast to string
+            access_token = create_access_token(identity=str(user.id))
+            refresh_token = create_refresh_token(identity=str(user.id))
             
             return jsonify({
                 'message': 'Login successful',
@@ -467,46 +304,6 @@ def create_app():
     # JWT Token endpoints
     @app.route('/api/token/', methods=['POST'])
     def get_token():
-        """
-        Get JWT Access Token
-        ---
-        tags:
-          - Authentication
-        summary: Get JWT Token
-        description: Obtain JWT access and refresh tokens by providing username/email and password
-        parameters:
-          - name: body
-            in: body
-            required: true
-            schema:
-              type: object
-              required:
-                - username
-                - password
-              properties:
-                username:
-                  type: string
-                  example: "john_doe"
-                password:
-                  type: string
-                  example: "SecurePass123"
-        responses:
-          200:
-            description: Tokens generated successfully
-            schema:
-              type: object
-              properties:
-                access:
-                  type: string
-                  description: JWT access token
-                refresh:
-                  type: string
-                  description: JWT refresh token
-          400:
-            description: Missing credentials
-          401:
-            description: Invalid credentials
-        """
         data = request.get_json()
         
         if not data:
@@ -529,8 +326,9 @@ def create_app():
             if not user.is_active:
                 return jsonify({'error': 'Account is inactive'}), 401
             
-            access_token = create_access_token(identity=user.id)
-            refresh_token = create_refresh_token(identity=user.id)
+            # FIXED: Identity cast to string
+            access_token = create_access_token(identity=str(user.id))
+            refresh_token = create_refresh_token(identity=str(user.id))
             
             return jsonify({
                 'access': access_token,
@@ -541,40 +339,6 @@ def create_app():
     
     @app.route('/api/token/refresh/', methods=['POST'])
     def refresh_token_endpoint():
-        """
-        Refresh JWT Access Token
-        ---
-        tags:
-          - Authentication
-        summary: Refresh Access Token
-        description: Get a new access token using a valid refresh token
-        parameters:
-          - name: Authorization
-            in: header
-            type: string
-            required: true
-            description: Bearer refresh_token
-          - name: body
-            in: body
-            required: false
-            schema:
-              type: object
-              properties:
-                refresh:
-                  type: string
-                  description: JWT refresh token (alternative to header)
-        responses:
-          200:
-            description: New access token generated
-            schema:
-              type: object
-              properties:
-                access:
-                  type: string
-                  description: New JWT access token
-          401:
-            description: Invalid or expired refresh token
-        """
         from flask_jwt_extended import jwt_required, get_jwt_identity
         
         # Try to get refresh token from body or header
@@ -586,7 +350,8 @@ def create_app():
             @jwt_required(refresh=True)
             def _refresh():
                 user_id = get_jwt_identity()
-                new_access_token = create_access_token(identity=user_id)
+                # FIXED: Identity cast to string
+                new_access_token = create_access_token(identity=str(user_id))
                 return jsonify({'access': new_access_token}), 200
             
             return _refresh()
@@ -596,91 +361,10 @@ def create_app():
     # User endpoints with /api/users/ prefix
     @app.route('/api/users/register/', methods=['POST'])
     def register_user():
-        """
-        Register New User (API Users Endpoint)
-        ---
-        tags:
-          - Users
-        summary: User Registration
-        description: Register a new user account
-        parameters:
-          - name: body
-            in: body
-            required: true
-            schema:
-              type: object
-              required:
-                - username
-                - email
-                - password
-                - password2
-              properties:
-                username:
-                  type: string
-                  example: "john_doe"
-                email:
-                  type: string
-                  example: "john@example.com"
-                password:
-                  type: string
-                  example: "SecurePass123"
-                password2:
-                  type: string
-                  example: "SecurePass123"
-                first_name:
-                  type: string
-                  example: "John"
-                last_name:
-                  type: string
-                  example: "Doe"
-        responses:
-          201:
-            description: User registered successfully
-          400:
-            description: Validation error
-          500:
-            description: Registration failed
-        """
         return register()  # Reuse the register function
     
     @app.route('/api/users/profile/', methods=['GET'])
     def get_user_profile():
-        """
-        Get User Profile
-        ---
-        tags:
-          - Users
-        summary: Get Current User Profile
-        description: Get the authenticated user's profile information
-        parameters:
-          - name: Authorization
-            in: header
-            type: string
-            required: true
-            description: Bearer access_token
-        responses:
-          200:
-            description: Profile retrieved successfully
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                username:
-                  type: string
-                email:
-                  type: string
-                first_name:
-                  type: string
-                last_name:
-                  type: string
-                date_joined:
-                  type: string
-          401:
-            description: Authentication required
-          404:
-            description: User not found
-        """
         from flask_jwt_extended import jwt_required, get_jwt_identity
         
         @jwt_required()
@@ -697,44 +381,6 @@ def create_app():
     
     @app.route('/api/users/profile/', methods=['PUT'])
     def update_user_profile():
-        """
-        Update User Profile
-        ---
-        tags:
-          - Users
-        summary: Update Current User Profile
-        description: Update the authenticated user's profile information
-        parameters:
-          - name: Authorization
-            in: header
-            type: string
-            required: true
-            description: Bearer access_token
-          - name: body
-            in: body
-            required: true
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  example: "newemail@example.com"
-                first_name:
-                  type: string
-                  example: "John"
-                last_name:
-                  type: string
-                  example: "Doe"
-        responses:
-          200:
-            description: Profile updated successfully
-          400:
-            description: Validation error
-          401:
-            description: Authentication required
-          404:
-            description: User not found
-        """
         from flask_jwt_extended import jwt_required, get_jwt_identity
         
         @jwt_required()
@@ -779,44 +425,6 @@ def create_app():
     # Framework Library CRUD Operations
     @app.route('/api/framework-library/', methods=['POST'])
     def create_framework_yaml():
-        """
-        Create New Framework
-        ---
-        tags:
-          - Frameworks
-        summary: Create Framework
-        description: Add a new framework to the library (admin only)
-        parameters:
-          - name: Authorization
-            in: header
-            type: string
-            required: true
-            description: Bearer access_token
-          - name: body
-            in: body
-            required: true
-            schema:
-              type: object
-              required:
-                - filename
-                - content
-              properties:
-                filename:
-                  type: string
-                  example: "custom-framework.yaml"
-                content:
-                  type: object
-                  description: YAML content as object
-        responses:
-          201:
-            description: Framework created successfully
-          400:
-            description: Invalid data
-          401:
-            description: Authentication required
-          500:
-            description: Creation failed
-        """
         from flask_jwt_extended import jwt_required, get_jwt_identity
         
         @jwt_required()
@@ -852,47 +460,6 @@ def create_app():
     
     @app.route('/api/framework-library/<filename>', methods=['PUT'])
     def update_framework_yaml(filename):
-        """
-        Update Framework
-        ---
-        tags:
-          - Frameworks
-        summary: Update Framework
-        description: Update an existing framework in the library (admin only)
-        parameters:
-          - name: Authorization
-            in: header
-            type: string
-            required: true
-            description: Bearer access_token
-          - name: filename
-            in: path
-            type: string
-            required: true
-            description: Framework filename
-          - name: body
-            in: body
-            required: true
-            schema:
-              type: object
-              required:
-                - content
-              properties:
-                content:
-                  type: object
-                  description: Updated YAML content
-        responses:
-          200:
-            description: Framework updated successfully
-          400:
-            description: Invalid data
-          401:
-            description: Authentication required
-          404:
-            description: Framework not found
-          500:
-            description: Update failed
-        """
         from flask_jwt_extended import jwt_required, get_jwt_identity
         
         @jwt_required()
@@ -929,34 +496,6 @@ def create_app():
     
     @app.route('/api/framework-library/<filename>', methods=['DELETE'])
     def delete_framework_yaml(filename):
-        """
-        Delete Framework
-        ---
-        tags:
-          - Frameworks
-        summary: Delete Framework
-        description: Delete a framework from the library (admin only)
-        parameters:
-          - name: Authorization
-            in: header
-            type: string
-            required: true
-            description: Bearer access_token
-          - name: filename
-            in: path
-            type: string
-            required: true
-            description: Framework filename
-        responses:
-          200:
-            description: Framework deleted successfully
-          401:
-            description: Authentication required
-          404:
-            description: Framework not found
-          500:
-            description: Deletion failed
-        """
         from flask_jwt_extended import jwt_required, get_jwt_identity
         
         @jwt_required()
@@ -988,37 +527,6 @@ def create_app():
     # Admin Dashboard
     @app.route('/admin/', methods=['GET'])
     def admin_dashboard():
-        """
-        Admin Dashboard
-        ---
-        tags:
-          - Admin
-        summary: Admin Dashboard
-        description: Access the admin dashboard (admin users only)
-        parameters:
-          - name: Authorization
-            in: header
-            type: string
-            required: false
-            description: Bearer access_token (optional for demo)
-        responses:
-          200:
-            description: Admin dashboard information
-            schema:
-              type: object
-              properties:
-                message:
-                  type: string
-                stats:
-                  type: object
-          401:
-            description: Authentication required
-          403:
-            description: Admin access required
-        """
-        # For now, return basic stats without authentication
-        # In production, add @jwt_required() and admin check
-        
         try:
             base_dir = Path(__file__).resolve().parent
             libraries_dir = base_dir / 'libraries'
