@@ -29,7 +29,8 @@ def generate_simple_summary(legal_text):
 
 def extract_obligations(legal_text):
     """
-    Extracts actionable compliance mandates and returns them as a Python list.
+    Analyzes regulatory text to calculate an impact score, map frameworks, 
+    and extract structured compliance obligations.
     """
     try:
         response = client.chat.completions.create(
@@ -38,10 +39,21 @@ def extract_obligations(legal_text):
             messages=[
                 {
                     "role": "system", 
-                    "content": """You are a strict compliance extraction engine. Your job is to extract actionable obligations, mandates, and 'what you must do' requirements from regulatory text. 
-                    Return ONLY a JSON object with a single key 'obligations' containing a list of strings. 
-                    If there are no clear obligations, return an empty list. 
-                    Example output: {"obligations": ["Must report breaches within 72 hours", "Must enforce MFA on admin accounts"]}"""
+                    "content": """You are an elite GRC (Governance, Risk, and Compliance) AI extraction engine. 
+                    Analyze the regulatory update and return ONLY a JSON object with this exact schema:
+                    {
+                      "impact_score": <Integer 1-10 based on urgency, operational scope, and penalty risk>,
+                      "frameworks": [<List of strings. Guess the affected frameworks if not explicitly stated, e.g., "NIST CSF", "ISO 27001", "GDPR", "SOC2", "DORA". Limit to top 3.>],
+                      "obligations": [
+                        {
+                          "action": "<Action verb, e.g., Implement, Audit, Report, Patch>",
+                          "subject": "<What specifically needs to be done>",
+                          "deadline": "<Extract deadline as YYYY-MM-DD, or 'Not Specified'>",
+                          "penalty_risk": "<High, Medium, or Low>"
+                        }
+                      ]
+                    }
+                    If there are no clear obligations, return an empty list for 'obligations'."""
                 },
                 {
                     "role": "user", 
@@ -52,7 +64,7 @@ def extract_obligations(legal_text):
         )
         
         result = json.loads(response.choices[0].message.content)
-        return result.get("obligations", [])
+        return result
         
     except Exception as e:
         print(f"OpenAI Extraction Error: {str(e)}")

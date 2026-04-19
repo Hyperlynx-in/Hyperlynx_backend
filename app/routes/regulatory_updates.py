@@ -437,11 +437,11 @@ def generate_single_summary(update_id):
 @jwt_required()
 def generate_obligations(update_id):
     """
-    AI: Extract Compliance Obligations
+    AI: Extract Compliance Obligations, Score, and Frameworks
     ---
     tags:
       - Regulatory Intelligence (AI)
-    summary: Extracts actionable mandates from a specific update
+    summary: Extracts actionable mandates and scores from a specific update
     parameters:
       - name: Authorization
         in: header
@@ -460,27 +460,33 @@ def generate_obligations(update_id):
     if not update_record:
         return jsonify({'error': 'Update not found'}), 404
 
-    # 1. Check if obligations already exist (Save API costs!)
-    # We check if it's not None AND if it has items in the list
     if update_record.obligations is not None and len(update_record.obligations) > 0:
         return jsonify({
             'status': 'success',
             'message': 'Obligations already extracted',
             'data': {
                 'id': update_record.id,
-                'obligations': update_record.obligations
+                'obligations': update_record.obligations,
+                'impact_score': update_record.impact_score,
+                'frameworks': update_record.frameworks,
+                'impact': update_record.impact
             }
         }), 200
 
-    # 2. Process through LLM
     combined_text = f"Title: {update_record.title}\nDetails: {update_record.summary}"
-    extracted_obligations = extract_obligations(combined_text)
+    
+    ai_analysis = extract_obligations(combined_text)
 
-    if extracted_obligations is None:
-        return jsonify({'error': 'Failed to extract obligations from OpenAI'}), 500
+    if not ai_analysis:
+        return jsonify({'error': 'Failed to extract data from OpenAI'}), 500
 
-    # 3. Save to the JSON column and return minimal payload
-    update_record.obligations = extracted_obligations
+    update_record.obligations = ai_analysis.get("obligations", [])
+    update_record.impact_score = ai_analysis.get("impact_score")
+    update_record.frameworks = ai_analysis.get("frameworks", [])
+    
+    score = update_record.impact_score
+    if score is not None:
+        update_record.impact = "High" if score >= 8 else ("Medium" if score >= 5 else "Low")
     
     try:
         db.session.commit()
@@ -489,7 +495,10 @@ def generate_obligations(update_id):
             'message': 'Obligations extracted successfully',
             'data': {
                 'id': update_record.id,
-                'obligations': update_record.obligations
+                'obligations': update_record.obligations,
+                'impact_score': update_record.impact_score,
+                'frameworks': update_record.frameworks,
+                'impact': update_record.impact
             }
         }), 200
     except Exception as e:
