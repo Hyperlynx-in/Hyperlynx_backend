@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, time
 from flask import Blueprint, jsonify, request
 from sqlalchemy.dialects.postgresql import insert
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -72,6 +72,7 @@ def ingest_updates():
                 'summary': item.get('summary'),
                 'impact': item.get('impact'),
                 'url': url,
+                'region': item.get('region'),
                 'generated_at': generated_at,
                 'created_at': datetime.utcnow()
             })
@@ -129,14 +130,28 @@ def get_updates():
     country = request.args.get('country')
     impact = request.args.get('impact')
     regulator = request.args.get('regulator')
+    region = request.args.get('region')
     search = request.args.get('search')
+    
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
     
     query = RegulatoryUpdate.query
     if country: query = query.filter(RegulatoryUpdate.country.ilike(f"%{country}%"))
     if impact: query = query.filter(RegulatoryUpdate.impact.ilike(f"{impact}"))
     if regulator: query = query.filter(RegulatoryUpdate.regulator.ilike(f"%{regulator}%"))
+    if region: query = query.filter(RegulatoryUpdate.region == region)
     if search:
-        query = query.filter((RegulatoryUpdate.title.ilike(f"%{search}%")) | (RegulatoryUpdate.summary.ilike(f"%{search}%")))
+        query = query.filter(
+            (RegulatoryUpdate.title.ilike(f"%{search}%")) | 
+            (RegulatoryUpdate.summary.ilike(f"%{search}%"))
+        )
+        
+    if start_date:
+        query = query.filter(RegulatoryUpdate.generated_at >= datetime.fromisoformat(start_date))
+    if end_date:
+        end_dt = datetime.combine(datetime.fromisoformat(end_date), time(23, 59, 59))
+        query = query.filter(RegulatoryUpdate.generated_at <= end_dt)
         
     query = query.order_by(RegulatoryUpdate.generated_at.desc())
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -303,6 +318,8 @@ def subscribe():
 
     # Upsert Subscription
     sub = UpdateSubscription.query.filter_by(email=email).first()
+    new_preferences = data.get('preferences', {})
+    
     if sub:
         sub.preferences = data.get('preferences', sub.preferences)
         sub.is_active = True
@@ -312,7 +329,7 @@ def subscribe():
         sub = UpdateSubscription(
             email=email,
             user_id=current_user_id,
-            preferences=data.get('preferences', {})
+            preferences=new_preferences
         )
         db.session.add(sub)
         

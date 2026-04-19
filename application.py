@@ -95,7 +95,19 @@ def create_app():
     
     # CORS Configuration
     cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
-    CORS(app, origins=cors_origins, supports_credentials=True)
+    CORS(app, resources={
+        r"/*": {
+            "origins": [
+                "http://localhost:5173", 
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://localhost:8080",
+                "http://localhost:5678/",
+            ],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Credentials"]
+        }
+    }, supports_credentials=True)
     
     # Initialize extensions
     db.init_app(app)

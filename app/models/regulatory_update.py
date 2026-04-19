@@ -11,6 +11,7 @@ class RegulatoryUpdate(db.Model):
     summary = db.Column(db.Text, nullable=False)
     impact = db.Column(db.String(50), nullable=False) 
     url = db.Column(db.String(2048), unique=True, nullable=False) 
+    region = db.Column(db.String(100))
     
     generated_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
