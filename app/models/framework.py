@@ -1,4 +1,5 @@
 """Framework and requirement models"""
+from pgvector.sqlalchemy import Vector
 from application import db
 from datetime import datetime
 
@@ -24,7 +25,6 @@ class Framework(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
     library = db.relationship('LoadedLibrary', backref='frameworks')
     requirements = db.relationship('RequirementNode', backref='framework', lazy='dynamic', cascade='all, delete-orphan')
     
@@ -51,7 +51,6 @@ class Framework(db.Model):
     
     def get_tree(self):
         """Get hierarchical tree of requirements"""
-        # Get root requirements (no parent)
         roots = RequirementNode.query.filter_by(
             framework_id=self.id,
             parent_urn=None
@@ -82,16 +81,16 @@ class RequirementNode(db.Model):
     description = db.Column(db.Text)
     
     framework_id = db.Column(db.String(255), db.ForeignKey('frameworks.id'), nullable=False)
-    parent_urn = db.Column(db.String(255))  # Store parent URN but don't enforce FK constraint
+    parent_urn = db.Column(db.String(255))  
     
     order_id = db.Column(db.Integer, default=0)
     level = db.Column(db.Integer, default=0)
     
-    # Assessment fields
     assessable = db.Column(db.Boolean, default=True)
     maturity = db.Column(db.Integer)
     
     translations = db.Column(db.JSON)
+    embedding = db.Column(Vector(1536))
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     

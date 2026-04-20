@@ -6,6 +6,7 @@ from .reference_control import ReferenceControl
 from .risk_matrix import RiskMatrix
 from .mapping import RequirementMappingSet, RequirementMapping
 from .regulatory_update import RegulatoryUpdate, UpdateSubscription, UserUpdateReadStatus
+from .company_profile import CompanyProfile
 
 __all__ = [
     'User',
@@ -20,4 +21,5 @@ __all__ = [
     'RegulatoryUpdate',
     'UpdateSubscription',
     'UserUpdateReadStatus',
+    'CompanyProfile'
 ]
