@@ -7,6 +7,7 @@ from .risk_matrix import RiskMatrix
 from .mapping import RequirementMappingSet, RequirementMapping
 from .regulatory_update import RegulatoryUpdate, UpdateSubscription, UserUpdateReadStatus
 from .company_profile import CompanyProfile
+from .grc_context import RiskProfile
 
 __all__ = [
     'User',
@@ -21,5 +22,6 @@ __all__ = [
     'RegulatoryUpdate',
     'UpdateSubscription',
     'UserUpdateReadStatus',
-    'CompanyProfile'
+    'CompanyProfile',
+    'RiskProfile',
 ]

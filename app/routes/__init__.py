@@ -1,4 +1,6 @@
 
+from app.routes import risk_api
+
 from .auth import auth_bp
 from .company_profile import profile_api
 from .regulatory_updates import updates_bp
@@ -28,3 +30,4 @@ def register_all_routes(app):
     app.register_blueprint(frameworks_api)
     
     app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
+    app.register_blueprint(risk_api, url_prefix='/api/v1/risk')
