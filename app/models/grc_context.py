@@ -68,3 +68,32 @@ class MetricSample(db.Model):
     value = db.Column(db.Float, nullable=False)
     measured_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text) # e.g., "Dip in patching compliance due to holiday freeze"
+    
+    
+class Risk(db.Model):
+    __tablename__ = 'risks'
+    id = db.Column(db.String(255), primary_key=True, default=lambda: str(uuid.uuid4()))
+    profile_id = db.Column(db.String(255), db.ForeignKey('company_profiles.id', ondelete='CASCADE'), nullable=False)
+    risk_id = db.Column(db.String(50))
+    name = db.Column(db.String(255), nullable=False)
+    category = db.Column(db.String(100))
+    likelihood = db.Column(db.Integer, nullable=False)
+    impact = db.Column(db.Integer, nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(50), default='Open')
+    owner = db.Column(db.String(100))
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "risk_id": self.risk_id,
+            "name": self.name,
+            "category": self.category,
+            "likelihood": self.likelihood,
+            "impact": self.impact,
+            "score": self.score,
+            "status": self.status,
+            "owner": self.owner
+        }
