@@ -1,15 +1,43 @@
 import os
 from flask import Blueprint, request, jsonify
+from typing import Any, Dict
 from openai import OpenAI
 from application import db
-from application.models import RequirementNode, Framework
+from app.models import RequirementNode, Framework 
 
 grc_api = Blueprint('grc_api', __name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @grc_api.route('/api/v1/intelligence/auto-tag', methods=['POST'])
 def auto_tag_regulatory_update():
-    data = request.json
+    """
+    Auto-Tag Regulatory Update
+    ---
+    tags:
+      - GRC Intelligence
+    summary: Uses AI embeddings to tag regulatory text against existing requirements
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            text:
+              type: string
+              description: The regulatory update text to analyze
+    responses:
+      200:
+        description: Returns a list of mapped framework tags
+      400:
+        description: No regulatory text provided
+      500:
+        description: Error processing embeddings
+    """
+    # FIX: Safely retrieve JSON to satisfy Pylance
+    data: Dict[str, Any] = request.get_json() or {}
     update_text = data.get('text')
     
     if not update_text:
@@ -21,8 +49,6 @@ def auto_tag_regulatory_update():
             model="text-embedding-3-small"
         )
         query_vector = response.data[0].embedding
-        
-        
         
         similarity_threshold = 0.65 
         

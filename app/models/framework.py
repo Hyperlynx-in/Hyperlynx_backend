@@ -2,10 +2,23 @@
 from pgvector.sqlalchemy import Vector
 from application import db
 from datetime import datetime
-
+from typing import List, Dict, Any, Optional
 
 class Framework(db.Model):
-    """Security/compliance frameworks"""
+    """
+    Security/compliance frameworks (e.g., ISO 27001, SOC2)
+    ---
+    schema:
+      type: object
+      properties:
+        id: {type: string}
+        urn: {type: string}
+        ref_id: {type: string}
+        name: {type: string}
+        description: {type: string}
+        min_score: {type: integer}
+        max_score: {type: integer}
+    """
     __tablename__ = 'frameworks'
     
     id = db.Column(db.String(255), primary_key=True)
@@ -26,9 +39,15 @@ class Framework(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     library = db.relationship('LoadedLibrary', backref='frameworks')
-    requirements = db.relationship('RequirementNode', backref='framework', lazy='dynamic', cascade='all, delete-orphan')
     
-    def to_dict(self, include_requirements=False):
+    requirements: Any = db.relationship(
+        'RequirementNode', 
+        backref='framework', 
+        lazy='dynamic', 
+        cascade='all, delete-orphan'
+    )
+    
+    def to_dict(self, include_requirements: bool = False) -> Dict[str, Any]:
         data = {
             'id': self.id,
             'urn': self.urn,
@@ -45,18 +64,19 @@ class Framework(db.Model):
         }
         
         if include_requirements:
-            data['requirements'] = [req.to_dict() for req in self.requirements]
+            # FIX: Casting to list or ensuring Pylance sees it as a query result
+            data['requirements'] = [req.to_dict() for req in self.requirements.all()]
             
         return data
     
-    def get_tree(self):
+    def get_tree(self) -> List[Dict[str, Any]]:
         """Get hierarchical tree of requirements"""
         roots = RequirementNode.query.filter_by(
             framework_id=self.id,
             parent_urn=None
         ).order_by(RequirementNode.order_id).all()
         
-        def build_tree(node):
+        def build_tree(node: 'RequirementNode') -> Dict[str, Any]:
             children = RequirementNode.query.filter_by(
                 framework_id=self.id,
                 parent_urn=node.urn
@@ -71,7 +91,18 @@ class Framework(db.Model):
 
 
 class RequirementNode(db.Model):
-    """Individual requirements within frameworks"""
+    """
+    Individual requirements within frameworks
+    ---
+    schema:
+      type: object
+      properties:
+        urn: {type: string}
+        ref_id: {type: string}
+        name: {type: string}
+        description: {type: string}
+        assessable: {type: boolean}
+    """
     __tablename__ = 'requirement_nodes'
     
     id = db.Column(db.String(255), primary_key=True)
@@ -94,17 +125,17 @@ class RequirementNode(db.Model):
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    def get_parent(self):
+    def get_parent(self) -> Optional['RequirementNode']:
         """Get parent requirement by URN"""
         if self.parent_urn:
             return RequirementNode.query.filter_by(urn=self.parent_urn).first()
         return None
     
-    def get_children(self):
+    def get_children(self) -> List['RequirementNode']:
         """Get child requirements"""
         return RequirementNode.query.filter_by(parent_urn=self.urn).order_by(RequirementNode.order_id).all()
     
-    def to_dict(self, include_children=False):
+    def to_dict(self, include_children: bool = False) -> Dict[str, Any]:
         data = {
             'id': self.id,
             'urn': self.urn,

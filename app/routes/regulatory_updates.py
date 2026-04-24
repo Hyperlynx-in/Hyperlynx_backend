@@ -3,11 +3,11 @@ from datetime import datetime, time
 from flask import Blueprint, jsonify, request
 from sqlalchemy.dialects.postgresql import insert
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from typing import Dict, Any
 
 from application import db
 from app.models.regulatory_update import RegulatoryUpdate, UserUpdateReadStatus, UpdateSubscription
 from app.models.user import User
-from app.services.ai_service import generate_simple_summary
 from app.services.ai_service import generate_simple_summary, extract_obligations
 
 updates_bp = Blueprint('updates', __name__)
@@ -40,6 +40,8 @@ def ingest_updates():
     responses:
       201:
         description: Successfully processed batch of updates
+      400:
+        description: Invalid payload format
       401:
         description: Unauthorized
     """
@@ -117,6 +119,21 @@ def get_updates():
         in: query
         type: string
       - name: impact
+        in: query
+        type: string
+      - name: regulator
+        in: query
+        type: string
+      - name: region
+        in: query
+        type: string
+      - name: search
+        in: query
+        type: string
+      - name: start_date
+        in: query
+        type: string
+      - name: end_date
         in: query
         type: string
     responses:
@@ -236,9 +253,13 @@ def update_read_status(update_id):
     responses:
       200:
         description: Status updated
+      400:
+        description: Invalid action
+      404:
+        description: Update not found
     """
     user_id = get_jwt_identity()
-    data = request.get_json()
+    data: Dict[str, Any] = request.get_json() or {}
     
     if not data or 'action' not in data:
         return jsonify({'error': 'Missing action (read or acknowledge)'}), 400
@@ -252,7 +273,10 @@ def update_read_status(update_id):
 
     status_record = UserUpdateReadStatus.query.filter_by(user_id=user_id, update_id=update_id).first()
     if not status_record:
-        status_record = UserUpdateReadStatus(user_id=user_id, update_id=update_id)
+        # FIX: Instantiate first, assign later
+        status_record = UserUpdateReadStatus()
+        status_record.user_id = user_id
+        status_record.update_id = update_id
         db.session.add(status_record)
 
     now = datetime.utcnow()
@@ -302,8 +326,10 @@ def subscribe():
     responses:
       200:
         description: Subscribed successfully
+      400:
+        description: Email is required
     """
-    data = request.get_json() or {}
+    data: Dict[str, Any] = request.get_json() or {}
     email = data.get('email')
     current_user_id = get_jwt_identity()
     
@@ -326,11 +352,11 @@ def subscribe():
         if current_user_id and not sub.user_id:
             sub.user_id = current_user_id
     else:
-        sub = UpdateSubscription(
-            email=email,
-            user_id=current_user_id,
-            preferences=new_preferences
-        )
+        # FIX: Instantiate first, assign later
+        sub = UpdateSubscription()
+        sub.email = email
+        sub.user_id = current_user_id
+        sub.preferences = new_preferences
         db.session.add(sub)
         
     try:
@@ -357,6 +383,8 @@ def get_n8n_subscribers():
     responses:
       200:
         description: List of active subscribers
+      401:
+        description: Unauthorized
     """
     auth_header = request.headers.get('Authorization')
     if auth_header != f"Bearer {N8N_WEBHOOK_SECRET}":
@@ -392,6 +420,10 @@ def generate_single_summary(update_id):
     responses:
       200:
         description: AI Summary generated
+      404:
+        description: Update not found
+      500:
+        description: Failed to generate AI summary
     """
     # 1. Fetch the specific update
     update_record = RegulatoryUpdate.query.get(update_id)
@@ -455,6 +487,10 @@ def generate_obligations(update_id):
     responses:
       200:
         description: Obligations extracted
+      404:
+        description: Update not found
+      500:
+        description: Failed to extract data
     """
     update_record = RegulatoryUpdate.query.get(update_id)
     if not update_record:

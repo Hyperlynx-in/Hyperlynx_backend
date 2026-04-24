@@ -1,11 +1,11 @@
-# app/services/relevance_engine.py
 import os
 import json
 from openai import OpenAI
+from typing import Any, Dict
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def calculate_relevance_score(regulatory_update_text: str, profile: dict) -> dict:
+def calculate_relevance_score(regulatory_update_text: str, profile: Dict[str, Any]) -> Dict[str, Any]:
     """
     Compares a regulatory update against a company profile to generate 
     a relevance score (0.0 to 1.0) and a rationale.
@@ -15,6 +15,7 @@ def calculate_relevance_score(regulatory_update_text: str, profile: dict) -> dic
     industry = profile.get('industry', 'Unknown')
     employee_count = profile.get('employee_count', 'Unknown')
     revenue = profile.get('annual_revenue', 'Unknown')
+    
     regions = ', '.join(profile.get('operating_regions') or ['None specified'])
     services = ', '.join(profile.get('services_provided') or ['None specified'])
     authorities = ', '.join(profile.get('regulatory_authorities') or ['None specified'])
@@ -62,7 +63,11 @@ def calculate_relevance_score(regulatory_update_text: str, profile: dict) -> dic
             temperature=0.1 
         )
         
-        result = json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if not content:
+            return {"relevance_score": 0.0, "rationale": "AI returned empty response."}
+            
+        result: Dict[str, Any] = json.loads(content)
         return result
         
     except Exception as e:
