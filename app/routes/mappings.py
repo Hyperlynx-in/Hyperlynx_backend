@@ -1,5 +1,6 @@
 """Requirement mapping routes"""
 from flask import jsonify, request
+from typing import Dict, Any
 from application import db
 from app.models import RequirementMappingSet, RequirementMapping
 
@@ -61,6 +62,8 @@ def register_mapping_routes(app):
         responses:
           200:
             description: Mapping set object with individual mappings
+          404:
+            description: Mapping set not found
         """
         mapping_set = RequirementMappingSet.query.filter(
             db.or_(
@@ -83,22 +86,29 @@ def register_mapping_routes(app):
         tags:
           - Requirement Mappings
         summary: Create new requirement mapping set
+        consumes:
+          - application/json
+        parameters:
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
         responses:
           201:
             description: Mapping set created
         """
-        data = request.get_json()
+        data: Dict[str, Any] = request.get_json() or {}
         urn = data.get('urn', f"urn:custom:mapping:{data.get('ref_id')}")
         
-        mapping_set = RequirementMappingSet(
-            id=urn,
-            urn=urn,
-            ref_id=data.get('ref_id'),
-            name=data.get('name'),
-            description=data.get('description'),
-            source_framework_urn=data.get('source_framework_urn'),
-            target_framework_urn=data.get('target_framework_urn')
-        )
+        mapping_set = RequirementMappingSet()
+        mapping_set.id = urn
+        mapping_set.urn = urn
+        mapping_set.ref_id = data.get('ref_id')
+        mapping_set.name = data.get('name')
+        mapping_set.description = data.get('description')
+        mapping_set.source_framework_urn = data.get('source_framework_urn')
+        mapping_set.target_framework_urn = data.get('target_framework_urn')
         
         db.session.add(mapping_set)
         db.session.commit()
@@ -108,7 +118,25 @@ def register_mapping_routes(app):
     
     @app.route('/api/requirement-mapping-sets/<path:mapping_id>/', methods=['PUT', 'PATCH'])
     def update_requirement_mapping_set(mapping_id):
-        """Update Mapping Set --- tags: [Requirement Mappings]"""
+        """
+        Update Mapping Set
+        ---
+        tags:
+          - Requirement Mappings
+        parameters:
+          - name: mapping_id
+            in: path
+            required: true
+            type: string
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+        responses:
+          200:
+            description: Mapping set updated
+        """
         mapping_set = RequirementMappingSet.query.filter(
             db.or_(
                 RequirementMappingSet.id == mapping_id,
@@ -119,7 +147,7 @@ def register_mapping_routes(app):
         if not mapping_set:
             return jsonify({'error': 'Mapping set not found'}), 404
         
-        data = request.get_json()
+        data: Dict[str, Any] = request.get_json() or {}
         for key in ['name', 'description', 'source_framework_urn', 'target_framework_urn']:
             if key in data:
                 setattr(mapping_set, key, data[key])
@@ -130,7 +158,20 @@ def register_mapping_routes(app):
     
     @app.route('/api/requirement-mapping-sets/<path:mapping_id>/', methods=['DELETE'])
     def delete_requirement_mapping_set(mapping_id):
-        """Delete Mapping Set --- tags: [Requirement Mappings]"""
+        """
+        Delete Mapping Set
+        ---
+        tags:
+          - Requirement Mappings
+        parameters:
+          - name: mapping_id
+            in: path
+            required: true
+            type: string
+        responses:
+          200:
+            description: Mapping set deleted
+        """
         mapping_set = RequirementMappingSet.query.filter(
             db.or_(
                 RequirementMappingSet.id == mapping_id,

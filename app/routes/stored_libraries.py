@@ -1,7 +1,11 @@
 """Library management routes"""
-from flask import jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app
+from typing import Dict, Any, Optional
 from application import db
-from app.models import StoredLibrary, LoadedLibrary, Framework, RequirementNode, ReferenceControl, RiskMatrix, RequirementMappingSet, RequirementMapping
+from app.models import (
+    StoredLibrary, LoadedLibrary, Framework, RequirementNode, 
+    ReferenceControl, RiskMatrix, RequirementMappingSet, RequirementMapping
+)
 import yaml
 import os
 from pathlib import Path
@@ -11,7 +15,6 @@ from datetime import datetime
 def register_library_routes(app):
     """Register all library-related API routes"""
     
-    # ==================== STORED LIBRARIES (CATALOG) ====================
     
     @app.route('/api/stored-libraries/', methods=['GET'])
     def list_stored_libraries():
@@ -26,41 +29,32 @@ def register_library_routes(app):
           - name: urn
             in: query
             type: string
-            description: Filter by URN
           - name: locale
             in: query
             type: string
-            description: Filter by locale (en, fr, de, etc.)
           - name: version
             in: query
             type: string
-            description: Filter by version
           - name: provider
             in: query
             type: string
-            description: Filter by provider
           - name: object_type
             in: query
             type: string
-            description: Filter by object type (framework, reference_controls, risk_matrix)
           - name: search
             in: query
             type: string
-            description: Search in name and description
           - name: is_loaded
             in: query
             type: boolean
-            description: Filter by loaded status
           - name: limit
             in: query
             type: integer
             default: 20
-            description: Number of results to return
           - name: offset
             in: query
             type: integer
             default: 0
-            description: Offset for pagination
         responses:
           200:
             description: List of stored libraries
@@ -78,8 +72,11 @@ def register_library_routes(app):
             query = query.filter_by(provider=provider)
         if object_type := request.args.get('object_type'):
             query = query.filter_by(object_type=object_type)
-        if request.args.get('is_loaded') is not None:
-            is_loaded = request.args.get('is_loaded').lower() == 'true'
+            
+        # FIX: Safe check before calling .lower()
+        is_loaded_param = request.args.get('is_loaded')
+        if is_loaded_param is not None:
+            is_loaded = is_loaded_param.lower() == 'true'
             query = query.filter_by(is_loaded=is_loaded)
         
         # Search
@@ -118,7 +115,6 @@ def register_library_routes(app):
             in: path
             required: true
             type: string
-            description: Library URN or ID
         responses:
           200:
             description: Library metadata
@@ -243,17 +239,17 @@ def register_library_routes(app):
         if library.is_loaded:
             return jsonify({'error': 'Library already loaded'}), 400
         
-        # Create loaded library instance FIRST (before importing objects that reference it)
-        loaded = LoadedLibrary(
-            id=library.urn,
-            urn=library.urn,
-            stored_library_id=library.id,
-            ref_id=library.ref_id,
-            locale=library.locale,
-            name=library.name,
-            version=library.version,
-            provider=library.provider
-        )
+        # FIX: Instantiate first, then assign
+        loaded = LoadedLibrary()
+        loaded.id = library.urn
+        loaded.urn = library.urn
+        loaded.stored_library_id = library.id
+        loaded.ref_id = library.ref_id
+        loaded.locale = library.locale
+        loaded.name = library.name
+        loaded.version = library.version
+        loaded.provider = library.provider
+        
         db.session.add(loaded)
         library.is_loaded = True
         db.session.flush()  # Flush to DB so foreign keys work
@@ -346,7 +342,9 @@ def register_library_routes(app):
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
-        if not file.filename.endswith(('.yaml', '.yml')):
+        
+        # FIX: Safe check for filename and extension
+        if not file or not file.filename or not file.filename.endswith(('.yaml', '.yml')):
             return jsonify({'error': 'Only YAML files allowed'}), 400
         
         try:
@@ -489,21 +487,21 @@ def create_stored_library_from_yaml(content):
         elif 'requirement_mapping_sets' in objects:
             object_type = 'mapping'
     
-    library = StoredLibrary(
-        id=urn,
-        urn=urn,
-        ref_id=content.get('ref_id', ''),
-        locale=content.get('locale', 'en'),
-        name=content.get('name', ''),
-        description=content.get('description', ''),
-        copyright=content.get('copyright', ''),
-        version=str(content.get('version', '1')),
-        provider=content.get('provider', ''),
-        packager=content.get('packager', ''),
-        object_type=object_type,
-        content=content,
-        translations=content.get('translations', {})
-    )
+    # FIX: Instantiate first, then assign properties
+    library = StoredLibrary()
+    library.id = urn
+    library.urn = urn
+    library.ref_id = content.get('ref_id', '')
+    library.locale = content.get('locale', 'en')
+    library.name = content.get('name', '')
+    library.description = content.get('description', '')
+    library.copyright = content.get('copyright', '')
+    library.version = str(content.get('version', '1'))
+    library.provider = content.get('provider', '')
+    library.packager = content.get('packager', '')
+    library.object_type = object_type
+    library.content = content
+    library.translations = content.get('translations', {})
     
     # Parse publication date
     if pub_date := content.get('publication_date'):
@@ -519,36 +517,37 @@ def import_framework_from_library(framework_data, library_urn):
     """Import framework and requirements from library"""
     urn = framework_data.get('urn')
     
-    # Create framework
-    framework = Framework(
-        id=urn,
-        urn=urn,
-        ref_id=framework_data.get('ref_id', ''),
-        name=framework_data.get('name', ''),
-        description=framework_data.get('description', ''),
-        library_urn=library_urn,
-        min_score=framework_data.get('min_score'),
-        max_score=framework_data.get('max_score'),
-        scores_definition=framework_data.get('scores_definition', []),
-        translations=framework_data.get('translations', {})
-    )
+    # FIX: Instantiate first, then assign properties
+    framework = Framework()
+    framework.id = urn
+    framework.urn = urn
+    framework.ref_id = framework_data.get('ref_id', '')
+    framework.name = framework_data.get('name', '')
+    framework.description = framework_data.get('description', '')
+    framework.library_urn = library_urn
+    framework.min_score = framework_data.get('min_score')
+    framework.max_score = framework_data.get('max_score')
+    framework.scores_definition = framework_data.get('scores_definition', [])
+    framework.translations = framework_data.get('translations', {})
+    
     db.session.add(framework)
     
     # Import requirements
     if 'requirement_nodes' in framework_data:
         for req_data in framework_data['requirement_nodes']:
-            req = RequirementNode(
-                id=req_data.get('urn'),
-                urn=req_data.get('urn'),
-                ref_id=req_data.get('ref_id'),
-                name=req_data.get('name'),
-                description=req_data.get('description'),
-                framework_id=urn,
-                parent_urn=req_data.get('parent_urn'),
-                order_id=req_data.get('order_id', 0),
-                assessable=req_data.get('assessable', True),
-                translations=req_data.get('translations', {})
-            )
+            # FIX: Instantiate first, then assign properties
+            req = RequirementNode()
+            req.id = req_data.get('urn')
+            req.urn = req_data.get('urn')
+            req.ref_id = req_data.get('ref_id')
+            req.name = req_data.get('name')
+            req.description = req_data.get('description')
+            req.framework_id = urn
+            req.parent_urn = req_data.get('parent_urn')
+            req.order_id = req_data.get('order_id', 0)
+            req.assessable = req_data.get('assessable', True)
+            req.translations = req_data.get('translations', {})
+            
             db.session.add(req)
     
     db.session.flush()
@@ -557,19 +556,20 @@ def import_framework_from_library(framework_data, library_urn):
 def import_reference_controls(controls_data, library_urn):
     """Import reference controls from library"""
     for control_data in controls_data:
-        control = ReferenceControl(
-            id=control_data.get('urn'),
-            urn=control_data.get('urn'),
-            ref_id=control_data.get('ref_id'),
-            name=control_data.get('name'),
-            description=control_data.get('description'),
-            library_urn=library_urn,
-            category=control_data.get('category'),
-            csf_function=control_data.get('csf_function'),
-            annotation=control_data.get('annotation'),
-            typical_evidence=control_data.get('typical_evidence'),
-            translations=control_data.get('translations', {})
-        )
+        # FIX: Instantiate first, then assign properties
+        control = ReferenceControl()
+        control.id = control_data.get('urn')
+        control.urn = control_data.get('urn')
+        control.ref_id = control_data.get('ref_id')
+        control.name = control_data.get('name')
+        control.description = control_data.get('description')
+        control.library_urn = library_urn
+        control.category = control_data.get('category')
+        control.csf_function = control_data.get('csf_function')
+        control.annotation = control_data.get('annotation')
+        control.typical_evidence = control_data.get('typical_evidence')
+        control.translations = control_data.get('translations', {})
+        
         db.session.add(control)
     
     db.session.flush()
@@ -578,18 +578,19 @@ def import_reference_controls(controls_data, library_urn):
 def import_risk_matrices(matrices_data, library_urn):
     """Import risk matrices from library"""
     for matrix_data in matrices_data:
-        matrix = RiskMatrix(
-            id=matrix_data.get('urn'),
-            urn=matrix_data.get('urn'),
-            ref_id=matrix_data.get('ref_id'),
-            name=matrix_data.get('name'),
-            description=matrix_data.get('description'),
-            library_urn=library_urn,
-            probability=matrix_data.get('probability', []),
-            impact=matrix_data.get('impact', []),
-            grid=matrix_data.get('grid', []),
-            translations=matrix_data.get('translations', {})
-        )
+        # FIX: Instantiate first, then assign properties
+        matrix = RiskMatrix()
+        matrix.id = matrix_data.get('urn')
+        matrix.urn = matrix_data.get('urn')
+        matrix.ref_id = matrix_data.get('ref_id')
+        matrix.name = matrix_data.get('name')
+        matrix.description = matrix_data.get('description')
+        matrix.library_urn = library_urn
+        matrix.probability = matrix_data.get('probability', [])
+        matrix.impact = matrix_data.get('impact', [])
+        matrix.grid = matrix_data.get('grid', [])
+        matrix.translations = matrix_data.get('translations', {})
+        
         db.session.add(matrix)
     
     db.session.flush()
@@ -598,30 +599,32 @@ def import_risk_matrices(matrices_data, library_urn):
 def import_mapping_sets(mappings_data, library_urn):
     """Import requirement mapping sets from library"""
     for mapping_data in mappings_data:
-        mapping_set = RequirementMappingSet(
-            id=mapping_data.get('urn'),
-            urn=mapping_data.get('urn'),
-            ref_id=mapping_data.get('ref_id'),
-            name=mapping_data.get('name'),
-            description=mapping_data.get('description'),
-            library_urn=library_urn,
-            source_framework_urn=mapping_data.get('source_framework_urn'),
-            target_framework_urn=mapping_data.get('target_framework_urn'),
-            translations=mapping_data.get('translations', {})
-        )
+        # FIX: Instantiate first, then assign properties
+        mapping_set = RequirementMappingSet()
+        mapping_set.id = mapping_data.get('urn')
+        mapping_set.urn = mapping_data.get('urn')
+        mapping_set.ref_id = mapping_data.get('ref_id')
+        mapping_set.name = mapping_data.get('name')
+        mapping_set.description = mapping_data.get('description')
+        mapping_set.library_urn = library_urn
+        mapping_set.source_framework_urn = mapping_data.get('source_framework_urn')
+        mapping_set.target_framework_urn = mapping_data.get('target_framework_urn')
+        mapping_set.translations = mapping_data.get('translations', {})
+        
         db.session.add(mapping_set)
         
         # Import individual mappings
         if 'mappings' in mapping_data:
             for map_item in mapping_data['mappings']:
-                mapping = RequirementMapping(
-                    id=f"{mapping_set.urn}:{map_item.get('source')}:{map_item.get('target')}",
-                    mapping_set_id=mapping_set.id,
-                    source_requirement_urn=map_item.get('source'),
-                    target_requirement_urn=map_item.get('target'),
-                    relationship_type=map_item.get('relationship', 'related'),
-                    rationale=map_item.get('rationale')
-                )
+                # FIX: Instantiate first, then assign properties
+                mapping = RequirementMapping()
+                mapping.id = f"{mapping_set.urn}:{map_item.get('source')}:{map_item.get('target')}"
+                mapping.mapping_set_id = mapping_set.id
+                mapping.source_requirement_urn = map_item.get('source')
+                mapping.target_requirement_urn = map_item.get('target')
+                mapping.relationship_type = map_item.get('relationship', 'related')
+                mapping.rationale = map_item.get('rationale')
+                
                 db.session.add(mapping)
     
     db.session.flush()

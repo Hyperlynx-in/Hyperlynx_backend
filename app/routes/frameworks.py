@@ -1,5 +1,6 @@
 """Frameworks API routes"""
 from flask import jsonify, request
+from typing import Dict, Any
 from application import db
 from app.models import Framework, RequirementNode
 
@@ -64,7 +65,6 @@ def register_framework_routes(app):
                 )
             )
         
-        # Pagination
         limit = int(request.args.get('limit', 20))
         offset = int(request.args.get('offset', 0))
         
@@ -93,6 +93,8 @@ def register_framework_routes(app):
         responses:
           200:
             description: Framework object with metadata
+          404:
+            description: Framework not found
         """
         framework = Framework.query.filter(
             db.or_(
@@ -124,6 +126,8 @@ def register_framework_routes(app):
         responses:
           200:
             description: Nested requirement structure
+          404:
+            description: Framework not found
         """
         framework = Framework.query.filter(
             db.or_(
@@ -161,6 +165,8 @@ def register_framework_routes(app):
         responses:
           200:
             description: Dict mapping framework IDs to translated names
+          400:
+            description: No framework IDs provided
         """
         ids = request.args.getlist('id[]')
         if not ids:
@@ -195,8 +201,7 @@ def register_framework_routes(app):
           200:
             description: Array of accessible frameworks
         """
-        # For now, return all frameworks
-        # In future, filter based on user permissions
+        
         frameworks = Framework.query.all()
         return jsonify({
             'count': len(frameworks),
@@ -212,6 +217,8 @@ def register_framework_routes(app):
         tags:
           - Frameworks
         summary: Create new framework
+        consumes:
+          - application/json
         parameters:
           - name: body
             in: body
@@ -229,21 +236,20 @@ def register_framework_routes(app):
           201:
             description: Framework created
         """
-        data = request.get_json()
+        data: Dict[str, Any] = request.get_json() or {}
         
         urn = data.get('urn', f"urn:custom:framework:{data.get('ref_id')}")
         
-        framework = Framework(
-            id=urn,
-            urn=urn,
-            ref_id=data.get('ref_id'),
-            name=data.get('name'),
-            description=data.get('description'),
-            min_score=data.get('min_score'),
-            max_score=data.get('max_score'),
-            scores_definition=data.get('scores_definition', []),
-            translations=data.get('translations', {})
-        )
+        framework = Framework()
+        framework.id = urn
+        framework.urn = urn
+        framework.ref_id = data.get('ref_id')
+        framework.name = data.get('name')
+        framework.description = data.get('description')
+        framework.min_score = data.get('min_score')
+        framework.max_score = data.get('max_score')
+        framework.scores_definition = data.get('scores_definition', [])
+        framework.translations = data.get('translations', {})
         
         db.session.add(framework)
         db.session.commit()
@@ -259,6 +265,8 @@ def register_framework_routes(app):
         tags:
           - Frameworks
         summary: Update framework details
+        consumes:
+          - application/json
         parameters:
           - name: framework_id
             in: path
@@ -272,6 +280,8 @@ def register_framework_routes(app):
         responses:
           200:
             description: Framework updated
+          404:
+            description: Framework not found
         """
         framework = Framework.query.filter(
             db.or_(
@@ -283,7 +293,7 @@ def register_framework_routes(app):
         if not framework:
             return jsonify({'error': 'Framework not found'}), 404
         
-        data = request.get_json()
+        data: Dict[str, Any] = request.get_json() or {}
         
         if 'name' in data:
             framework.name = data['name']
@@ -334,7 +344,6 @@ def register_framework_routes(app):
         return jsonify({'status': 'success', 'message': 'Framework deleted'}), 200
     
     
-    # ==================== REQUIREMENT NODES ====================
     
     @app.route('/api/requirement-nodes/', methods=['GET'])
     def list_requirement_nodes():
@@ -398,6 +407,8 @@ def register_framework_routes(app):
         responses:
           200:
             description: Requirement object
+          404:
+            description: Requirement not found
         """
         requirement = RequirementNode.query.filter(
             db.or_(

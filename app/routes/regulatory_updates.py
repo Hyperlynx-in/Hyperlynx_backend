@@ -1,13 +1,13 @@
 import os
-from datetime import datetime
+from datetime import datetime, time
 from flask import Blueprint, jsonify, request
 from sqlalchemy.dialects.postgresql import insert
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from typing import Dict, Any
 
 from application import db
 from app.models.regulatory_update import RegulatoryUpdate, UserUpdateReadStatus, UpdateSubscription
 from app.models.user import User
-from app.services.ai_service import generate_simple_summary
 from app.services.ai_service import generate_simple_summary, extract_obligations
 
 updates_bp = Blueprint('updates', __name__)
@@ -40,6 +40,8 @@ def ingest_updates():
     responses:
       201:
         description: Successfully processed batch of updates
+      400:
+        description: Invalid payload format
       401:
         description: Unauthorized
     """
@@ -72,6 +74,7 @@ def ingest_updates():
                 'summary': item.get('summary'),
                 'impact': item.get('impact'),
                 'url': url,
+                'region': item.get('region'),
                 'generated_at': generated_at,
                 'created_at': datetime.utcnow()
             })
@@ -118,6 +121,21 @@ def get_updates():
       - name: impact
         in: query
         type: string
+      - name: regulator
+        in: query
+        type: string
+      - name: region
+        in: query
+        type: string
+      - name: search
+        in: query
+        type: string
+      - name: start_date
+        in: query
+        type: string
+      - name: end_date
+        in: query
+        type: string
     responses:
       200:
         description: Paginated list of updates
@@ -129,14 +147,28 @@ def get_updates():
     country = request.args.get('country')
     impact = request.args.get('impact')
     regulator = request.args.get('regulator')
+    region = request.args.get('region')
     search = request.args.get('search')
+    
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
     
     query = RegulatoryUpdate.query
     if country: query = query.filter(RegulatoryUpdate.country.ilike(f"%{country}%"))
     if impact: query = query.filter(RegulatoryUpdate.impact.ilike(f"{impact}"))
     if regulator: query = query.filter(RegulatoryUpdate.regulator.ilike(f"%{regulator}%"))
+    if region: query = query.filter(RegulatoryUpdate.region == region)
     if search:
-        query = query.filter((RegulatoryUpdate.title.ilike(f"%{search}%")) | (RegulatoryUpdate.summary.ilike(f"%{search}%")))
+        query = query.filter(
+            (RegulatoryUpdate.title.ilike(f"%{search}%")) | 
+            (RegulatoryUpdate.summary.ilike(f"%{search}%"))
+        )
+        
+    if start_date:
+        query = query.filter(RegulatoryUpdate.generated_at >= datetime.fromisoformat(start_date))
+    if end_date:
+        end_dt = datetime.combine(datetime.fromisoformat(end_date), time(23, 59, 59))
+        query = query.filter(RegulatoryUpdate.generated_at <= end_dt)
         
     query = query.order_by(RegulatoryUpdate.generated_at.desc())
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -221,9 +253,13 @@ def update_read_status(update_id):
     responses:
       200:
         description: Status updated
+      400:
+        description: Invalid action
+      404:
+        description: Update not found
     """
     user_id = get_jwt_identity()
-    data = request.get_json()
+    data: Dict[str, Any] = request.get_json() or {}
     
     if not data or 'action' not in data:
         return jsonify({'error': 'Missing action (read or acknowledge)'}), 400
@@ -237,7 +273,10 @@ def update_read_status(update_id):
 
     status_record = UserUpdateReadStatus.query.filter_by(user_id=user_id, update_id=update_id).first()
     if not status_record:
-        status_record = UserUpdateReadStatus(user_id=user_id, update_id=update_id)
+        # FIX: Instantiate first, assign later
+        status_record = UserUpdateReadStatus()
+        status_record.user_id = user_id
+        status_record.update_id = update_id
         db.session.add(status_record)
 
     now = datetime.utcnow()
@@ -287,8 +326,10 @@ def subscribe():
     responses:
       200:
         description: Subscribed successfully
+      400:
+        description: Email is required
     """
-    data = request.get_json() or {}
+    data: Dict[str, Any] = request.get_json() or {}
     email = data.get('email')
     current_user_id = get_jwt_identity()
     
@@ -303,17 +344,19 @@ def subscribe():
 
     # Upsert Subscription
     sub = UpdateSubscription.query.filter_by(email=email).first()
+    new_preferences = data.get('preferences', {})
+    
     if sub:
         sub.preferences = data.get('preferences', sub.preferences)
         sub.is_active = True
         if current_user_id and not sub.user_id:
             sub.user_id = current_user_id
     else:
-        sub = UpdateSubscription(
-            email=email,
-            user_id=current_user_id,
-            preferences=data.get('preferences', {})
-        )
+        # FIX: Instantiate first, assign later
+        sub = UpdateSubscription()
+        sub.email = email
+        sub.user_id = current_user_id
+        sub.preferences = new_preferences
         db.session.add(sub)
         
     try:
@@ -340,6 +383,8 @@ def get_n8n_subscribers():
     responses:
       200:
         description: List of active subscribers
+      401:
+        description: Unauthorized
     """
     auth_header = request.headers.get('Authorization')
     if auth_header != f"Bearer {N8N_WEBHOOK_SECRET}":
@@ -375,6 +420,10 @@ def generate_single_summary(update_id):
     responses:
       200:
         description: AI Summary generated
+      404:
+        description: Update not found
+      500:
+        description: Failed to generate AI summary
     """
     # 1. Fetch the specific update
     update_record = RegulatoryUpdate.query.get(update_id)
@@ -420,11 +469,11 @@ def generate_single_summary(update_id):
 @jwt_required()
 def generate_obligations(update_id):
     """
-    AI: Extract Compliance Obligations
+    AI: Extract Compliance Obligations, Score, and Frameworks
     ---
     tags:
       - Regulatory Intelligence (AI)
-    summary: Extracts actionable mandates from a specific update
+    summary: Extracts actionable mandates and scores from a specific update
     parameters:
       - name: Authorization
         in: header
@@ -438,32 +487,42 @@ def generate_obligations(update_id):
     responses:
       200:
         description: Obligations extracted
+      404:
+        description: Update not found
+      500:
+        description: Failed to extract data
     """
     update_record = RegulatoryUpdate.query.get(update_id)
     if not update_record:
         return jsonify({'error': 'Update not found'}), 404
 
-    # 1. Check if obligations already exist (Save API costs!)
-    # We check if it's not None AND if it has items in the list
     if update_record.obligations is not None and len(update_record.obligations) > 0:
         return jsonify({
             'status': 'success',
             'message': 'Obligations already extracted',
             'data': {
                 'id': update_record.id,
-                'obligations': update_record.obligations
+                'obligations': update_record.obligations,
+                'impact_score': update_record.impact_score,
+                'frameworks': update_record.frameworks,
+                'impact': update_record.impact
             }
         }), 200
 
-    # 2. Process through LLM
     combined_text = f"Title: {update_record.title}\nDetails: {update_record.summary}"
-    extracted_obligations = extract_obligations(combined_text)
+    
+    ai_analysis = extract_obligations(combined_text)
 
-    if extracted_obligations is None:
-        return jsonify({'error': 'Failed to extract obligations from OpenAI'}), 500
+    if not ai_analysis:
+        return jsonify({'error': 'Failed to extract data from OpenAI'}), 500
 
-    # 3. Save to the JSON column and return minimal payload
-    update_record.obligations = extracted_obligations
+    update_record.obligations = ai_analysis.get("obligations", [])
+    update_record.impact_score = ai_analysis.get("impact_score")
+    update_record.frameworks = ai_analysis.get("frameworks", [])
+    
+    score = update_record.impact_score
+    if score is not None:
+        update_record.impact = "High" if score >= 8 else ("Medium" if score >= 5 else "Low")
     
     try:
         db.session.commit()
@@ -472,7 +531,10 @@ def generate_obligations(update_id):
             'message': 'Obligations extracted successfully',
             'data': {
                 'id': update_record.id,
-                'obligations': update_record.obligations
+                'obligations': update_record.obligations,
+                'impact_score': update_record.impact_score,
+                'frameworks': update_record.frameworks,
+                'impact': update_record.impact
             }
         }), 200
     except Exception as e:

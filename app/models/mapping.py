@@ -1,10 +1,20 @@
 """Requirement mapping models (framework crosswalks)"""
 from application import db
 from datetime import datetime
-
+from typing import Any, Dict, List, Optional
 
 class RequirementMappingSet(db.Model):
-    """Set of mappings between two frameworks"""
+    """
+    Set of mappings between two frameworks (e.g., ISO 27001 to NIST CSF)
+    ---
+    schema:
+      type: object
+      properties:
+        id: {type: string}
+        name: {type: string}
+        source_framework_urn: {type: string}
+        target_framework_urn: {type: string}
+    """
     __tablename__ = 'requirement_mapping_sets'
     
     id = db.Column(db.String(255), primary_key=True)
@@ -25,9 +35,15 @@ class RequirementMappingSet(db.Model):
     
     # Relationships
     library = db.relationship('LoadedLibrary', backref='mapping_sets')
-    mappings = db.relationship('RequirementMapping', backref='mapping_set', lazy='dynamic', cascade='all, delete-orphan')
     
-    def to_dict(self, include_mappings=False):
+    mappings: Any = db.relationship(
+        'RequirementMapping', 
+        backref='mapping_set', 
+        lazy='dynamic', 
+        cascade='all, delete-orphan'
+    )
+    
+    def to_dict(self, include_mappings: bool = False) -> Dict[str, Any]:
         data = {
             'id': self.id,
             'urn': self.urn,
@@ -43,13 +59,22 @@ class RequirementMappingSet(db.Model):
         }
         
         if include_mappings:
-            data['mappings'] = [m.to_dict() for m in self.mappings]
+            data['mappings'] = [m.to_dict() for m in self.mappings.all()]
             
         return data
 
 
 class RequirementMapping(db.Model):
-    """Individual requirement-to-requirement mapping"""
+    """
+    Individual requirement-to-requirement mapping
+    ---
+    schema:
+      type: object
+      properties:
+        relationship_type: {type: string, enum: [equal, subset, superset, related, similar]}
+        strength: {type: integer, description: "Mapping confidence score 0-100"}
+        rationale: {type: string}
+    """
     __tablename__ = 'requirement_mappings'
     
     id = db.Column(db.String(255), primary_key=True)
@@ -65,7 +90,7 @@ class RequirementMapping(db.Model):
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         return {
             'id': self.id,
             'mapping_set_id': self.mapping_set_id,

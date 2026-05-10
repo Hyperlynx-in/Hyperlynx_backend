@@ -11,10 +11,12 @@ class RegulatoryUpdate(db.Model):
     summary = db.Column(db.Text, nullable=False)
     impact = db.Column(db.String(50), nullable=False) 
     url = db.Column(db.String(2048), unique=True, nullable=False) 
-    
+    region = db.Column(db.String(100))
+    impact = db.Column(db.String(50), nullable=False)
     generated_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+    impact_score = db.Column(db.Integer, nullable=True) 
+    frameworks = db.Column(db.JSON, nullable=True)
     ai_one_liner = db.Column(db.String(500), nullable=True)
     obligations = db.Column(db.JSON, nullable=True)
 
@@ -26,6 +28,8 @@ class RegulatoryUpdate(db.Model):
             'title': self.title,
             'summary': self.summary,
             'impact': self.impact,
+            'impact_score': self.impact_score, 
+            'frameworks': self.frameworks,   
             'url': self.url,
             'generated_at': self.generated_at.isoformat() if self.generated_at else None,
             'created_at': self.created_at.isoformat(),
